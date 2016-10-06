@@ -181,7 +181,7 @@ static err_t TelnetAccept(void *arg, struct tcp_pcb *pcb, err_t err) {
 	tcp_nagle_enable(pcb);
 	telnet_server.pcb = pcb;
 	telnet_server.pcb->so_options |= SOF_KEEPALIVE;
-	telnet_server.pcb->keep_idle = 300000UL; // 5 Minutes
+	telnet_server.pcb->keep_idle = 6667UL; ///// 6.667 sec
 	telnet_server.pcb->keep_intvl = 1000UL; // 1 Second
 	telnet_server.pcb->keep_cnt = 9; // 9 Consecutive failures terminate
 
