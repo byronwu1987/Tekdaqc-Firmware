@@ -1564,6 +1564,7 @@ static Tekdaqc_Command_Error_t Ex_ReadAnalogInput(char keys[][MAX_COMMANDPART_LE
 }
 #endif
 //lfao
+bool slowAnalog = FALSE;
 static Tekdaqc_Command_Error_t Ex_ReadAnalogInputVer2(char keys[][MAX_COMMANDPART_LENGTH],
 		char values[][MAX_COMMANDPART_LENGTH], uint8_t count) {
 	Tekdaqc_Command_Error_t retval = ERR_COMMAND_OK;
@@ -1631,6 +1632,7 @@ static Tekdaqc_Command_Error_t Ex_ReadAnalogInputVer2(char keys[][MAX_COMMANDPAR
 		retval = ERR_COMMAND_BAD_PARAM;
 	}
     currentAnHandlerState=1;
+    slowAnalog = TRUE;
 	return retval;
 }
 
@@ -1953,6 +1955,7 @@ static Tekdaqc_Command_Error_t Ex_ListDigitalInputs(char keys[][MAX_COMMANDPART_
  * @param count uint8_t The number of command parameters.
  * @retval Tekdaqc_Command_Error_t The command error status.
  */
+bool slowDigi = FALSE;
 static Tekdaqc_Command_Error_t Ex_ReadDigitalInput(char keys[][MAX_COMMANDPART_LENGTH],
 		char values[][MAX_COMMANDPART_LENGTH], uint8_t count) {
 	Tekdaqc_Command_Error_t retval = ERR_COMMAND_OK;
@@ -2010,6 +2013,9 @@ static Tekdaqc_Command_Error_t Ex_ReadDigitalInput(char keys[][MAX_COMMANDPART_L
 			}
 		}
 	}
+	/////
+	slowDigi = TRUE;
+	/////
 	return retval;
 }
 
@@ -2431,7 +2437,21 @@ static Tekdaqc_Command_Error_t Ex_Sample(char keys[][MAX_COMMANDPART_LENGTH], ch
 		retval = ERR_COMMAND_BAD_PARAM;
 	}
 	//enable analog sampling...
-	currentAnHandlerState = 1;
+	/*prevents infinite sampling for when sample command is implemented
+		before adding analog/digital inputs*/
+	if (numOfInputs) {
+		currentAnHandlerState = 1;
+		slowAnalog = TRUE;
+	}
+	else {
+		AnalogHalt();
+	}
+	if (!numOfDigitalInputs) {
+		DigitalInputHalt();
+	}
+	else {
+		slowDigi = TRUE;
+	}
 	return retval;
 }
 
