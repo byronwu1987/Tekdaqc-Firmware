@@ -22,11 +22,13 @@
 #include "Tekdaqc_CalibrationTable.h"
 #include "Tekdaqc_Calibration.h"
 #include "Tekdaqc_RTC.h"
+#include "Tekdaqc_Timers.h"
 #include "CommandState.h"
 #include "ADS1256_SPI_Controller.h"
 #include "Tekdaqc_Error.h"
 #include "Tekdaqc_Version.h"
 #include "ADS1256_Driver.h"
+#include "lwip/tcp.h"
 #include <stdio.h>
 #include <inttypes.h>
 
@@ -141,6 +143,10 @@ int main(void) {
 	return 0;
 }
 
+uint64_t slowNetTime = 0;
+extern volatile bool bufferFree;
+extern volatile bool slowNet;
+
 static void program_loop(void) {
 	/* Infinite loop */
 	while (1)
@@ -165,12 +171,36 @@ static void program_loop(void) {
 				Command_AddChar(character);
 			}
 		}
-		//lfao - write to telnet the analog samples data...
-		WriteToTelnet_Analog();
-		//lfao - read digital inputs
-		ReadDigitalInputs();
-		//lfao - write to telnet the digital inputs data...
-		WriteToTelnet_Digital();
+
+		/*
+		 * continue sampling digital samples if telnet buffer is available
+		 * continue writing to telnet buffer if telnet buffer is available
+		 */
+		if (bufferFree && !slowNet) {
+			//lfao - write to telnet the analog samples data...
+			WriteToTelnet_Analog();
+			//lfao - read digital inputs
+			ReadDigitalInputs();
+			//lfao - write to telnet the digital inputs data...
+			WriteToTelnet_Digital();
+			/*record start time for slow digital sample*/
+			if (!bufferFree) {
+				slowNetTime = GetLocalTime();
+			}
+		}
+		/*net is slow, lower digital sampling rate to once per second*/
+		else if (slowNet) {
+			/*1 sample per second*/
+			if ((GetLocalTime() - slowNetTime) > SLOW_DIGI_SAMPLE) {
+				slowNetTime = GetLocalTime();
+				ReadDigitalInputs();
+			}
+			/*Write to telnet buffer only if there is space available*/
+			if (bufferFree) {
+				WriteToTelnet_Analog();
+				WriteToTelnet_Digital();
+			}
+		}
 	}
 
 	/* Check to see if any faults have occurred */
