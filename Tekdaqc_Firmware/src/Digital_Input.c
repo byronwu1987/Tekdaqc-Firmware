@@ -153,6 +153,7 @@ int ReadDigitalSampleFromBuffer(Digital_Samples_t *Data)
 	}
 }
 
+extern bool bufferFree;
 //lfao-converts the gathered data into ASCII and writes it to Telnet...
 void WriteToTelnet_Digital(void)
 {
@@ -171,6 +172,15 @@ void WriteToTelnet_Digital(void)
 			   snprintf(TOSTRING_BUFFER, SIZE_TOSTRING_BUFFER, "?D%i\r\n%" PRIu64 ",H%c\r\n", tempData.iChannel, tempData.ui64TimeStamp, 0x1e);
 		    }
 		    TelnetWriteString(TOSTRING_BUFFER);
+
+		    /**
+		     * decrement iDigiTail to prevent the loss of the sample that could not be moved to
+		     * the telnet buffer to be printed via telnet
+		     */
+		    if (!bufferFree) {
+		    	iDigiTail--;
+		    	break;
+		    }
 		}
 		else
 		{
@@ -193,8 +203,10 @@ void ReadDigitalInputs(void)
 				if(numDigitalSamples)
 				{
 					numSamplesTaken++;
-					if(numSamplesTaken > numDigitalSamples*numOfDigitalInputs)
+					if(numSamplesTaken > numDigitalSamples*numOfDigitalInputs) {
+						DigitalInputHalt(); //reset digital sample values
 						break;
+					}
 				}
 
 				tempDigitalSample.iChannel = dInputs[i]->input;
