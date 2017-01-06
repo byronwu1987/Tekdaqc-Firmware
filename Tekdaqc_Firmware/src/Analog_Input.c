@@ -160,6 +160,7 @@ int ReadSampleFromBuffer(Analog_Samples_t *Data)
 	}
 }
 
+extern bool bufferFree;
 //lfao-converts the gathered data into ASCII and writes it to Telnet...
 void WriteToTelnet_Analog(void)
 {
@@ -190,6 +191,15 @@ void WriteToTelnet_Analog(void)
 
 		    snprintf(TOSTRING_BUFFER, SIZE_TOSTRING_BUFFER, "?A%i\r\n%" PRIu64 ",%" PRIi32 "%c\r\n", tempData.iChannel, tempData.ui64TimeStamp, corrected, 0x1e);
 		    TelnetWriteString(TOSTRING_BUFFER);
+
+		    /*
+		     * decrement iTail to prevent the loss of the sample that could not be moved to
+		     * the telnet buffer to be printed via telnet
+		     */
+		    if (!bufferFree) {
+		    	iTail--;
+		    	break;
+		    }
 		}
 		else
 		{
@@ -366,6 +376,7 @@ void AnalogChannelHandler(void)
 				//end of sampling for a single channel...
 				if(numOfInputs==1)
 				{
+					AnalogHalt(); //reset analog sample values
 					aInputs[currentAnalogChannel]=NULL;
 					currentAnHandlerState = 0;
 				}
@@ -379,6 +390,7 @@ void AnalogChannelHandler(void)
 						multipleChannelSamples++;
 						if(numOfInputs*numAnalogSamples==multipleChannelSamples)
 						{
+							AnalogHalt(); //reset analog sample values
 							//empty the aInputs array...
 							for (uint_fast8_t i = 0; i < NUM_ANALOG_INPUTS; ++i)
 							{
