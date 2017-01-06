@@ -51,6 +51,8 @@
 #include "lwip/inet_chksum.h"
 #include "lwip/stats.h"
 #include "lwip/snmp.h"
+#include "Tekdaqc_Timers.h"
+#include "TelnetServer.h"
 #if LWIP_TCP_TIMESTAMPS
 #include "lwip/sys.h"
 #endif
@@ -350,6 +352,11 @@ tcp_write_checks(struct tcp_pcb *pcb, u16_t len)
  * - TCP_WRITE_FLAG_MORE (0x02) for TCP connection, PSH flag will be set on last segment sent,
  * @return ERR_OK if enqueued, another err_t on error
  */
+u8_t serverFull = 0;				//number of attempt to segmentize telnet buffer
+uint64_t slowTime = 0;				//timeout start time
+volatile bool slowNet = FALSE;		//flag to indicate slow net
+volatile bool bufferFree = TRUE;	//flag to indicate telnet buffer is free for analog/digital
+									//buffer to transfer data over
 err_t
 tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
 {
@@ -384,8 +391,29 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
 
   err = tcp_write_checks(pcb, len);
   if (err != ERR_OK) {
+	  	/**
+	  	 * after three unsuccessful attempt to send telnet buffer
+	  	 * flag digital to sample slowly
+	  	 * record start time for 5 sec timeout
+	  	 */
+	  	serverFull++; //buffer not sent
+	  	if (serverFull >= 2) {
+	  		slowNet = TRUE;
+	  		slowTime = GetLocalTime(); //timeout start time
+	  	}
     return err;
   }
+    /*buffer successfully sent*/
+    serverFull = 0;
+    /*space is available for analog/digital buffer to write to telnet buffer*/
+    bufferFree = TRUE;
+    /**
+     * if telnet buffer can be sent without 2 consecutive failures
+     * within 5 sec, sample at original rate
+     */
+    if (slowNet && ((GetLocalTime() - slowTime) >= FAST_NET)) {
+  	slowNet = FALSE;
+    }
   queuelen = pcb->snd_queuelen;
 
 #if LWIP_TCP_TIMESTAMPS
